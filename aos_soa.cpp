@@ -148,25 +148,9 @@ template <template <template <typename, size_t> typename, size_t> typename T, si
     auto get_ptrs() { return __SOA_convert<T<SOA_Helper::type_wrapper, 1>, T<SOAPtr_Helper::type_wrapper, 1>>(*this); };
 };
 
-// Type definition
-
-struct sub_point
+template <template <template <typename, size_t> typename, size_t> typename T, size_t N> struct Type_AOS : public T<AOS_Helper::array_helper<T>::template array_type_wrapper, N>
 {
-    int u, v;
-};
-
-SOASTRUCT() struct point_def
-{
-    SOATYPE(int) x; // TODO: What can we do for default values / constuctor?
-    SOATYPE(float) y;
-    SOATYPE(sub_point) z;
-};
-typedef Type_Plain<point_def> point;
-
-// TODO: In this class, T should be point_def, but it some places I had to write point_def explicitly or I get a compile error, could not yet figure out why. This should be fixed. Then, we can also move this class body above the point_def definition.
-template <template <template <typename, size_t> typename, size_t> typename T, size_t N> struct Type_AOS : public T<AOS_Helper::array_helper<point_def>::array_type_wrapper, N>
-{
-    Type_AOS() : T<AOS_Helper::array_helper<point_def>::array_type_wrapper, N>(get_arrays()) {
+    Type_AOS() : T<AOS_Helper::array_helper<T>::template array_type_wrapper, N>(get_arrays()) {
 
     }
     auto& operator[](size_t idx) { return values[idx]; }
@@ -184,12 +168,27 @@ template <template <template <typename, size_t> typename, size_t> typename T, si
 private:
     T<Plain_Helper::type_wrapper, 1> values[N];
 
-    T<AOS_Helper::array_helper<point_def>::array_type_wrapper, N> get_arrays() {
+    T<AOS_Helper::array_helper<T>::template array_type_wrapper, N> get_arrays() {
         // T<Plain_Helper::type_wrapper, 1>::auto* [p1, p2, p3] = values[0]; // TODO: Structured bindings do not work with member variable pointers, or I am too stupid to find out how
         return {this->get_array_ptr(&Type_Plain<T>::x), this->get_array_ptr(&Type_Plain<T>::y), this->get_array_ptr(&Type_Plain<T>::z)};
     }
 
 };
+
+// Type definition
+
+struct sub_point
+{
+    int u, v;
+};
+
+SOASTRUCT() struct point_def
+{
+    SOATYPE(int) x; // TODO: What can we do for default values / constuctor?
+    SOATYPE(float) y;
+    SOATYPE(sub_point) z;
+};
+typedef Type_Plain<point_def> point;
 
 // Usage
 
