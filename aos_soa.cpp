@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdlib>
 #include <cstdio>
 #include <tuple>
@@ -7,9 +8,7 @@
 // Helper code
 
 #define SOASTRUCT() template <template <typename, size_t> typename __SOA_T, size_t __SOA_N>
-#define SOATYPE(SOA_TYPE) typename __SOA_T<SOA_TYPE, __SOA_N>::type
-
-constexpr size_t SOA_ALIGN = 16;
+#define SOATYPE(SOA_TYPE) __SOA_T<SOA_TYPE, __SOA_N>
 
 // forward declarations
 template <template <template <typename, size_t> typename, size_t> typename T> struct Type_Ref;
@@ -20,6 +19,8 @@ template <template <template <typename, size_t> typename, size_t> typename T, si
 template <template <template <typename, size_t> typename, size_t> typename T> struct Type_SOAPtr;
 
 namespace __Type_Helpers {
+
+constexpr size_t SOA_ALIGN = 16;
 
 template <typename T, typename S, typename R> static S SOA_convert(R& val)
 {
@@ -33,33 +34,23 @@ template <typename T, typename S, typename R> static S SOA_convert(R& val, size_
     return S(p1[idx], p2[idx], p3[idx]);
 }
 
-template <typename T, size_t> struct plain_wrapper
-{
-    static_assert(std::is_standard_layout_v<T> == true, "Invalid type for SOATypes"); // TODO: can we do the asserts better, do we need them?
-    typedef T type;
-};
+template <typename T, size_t N> requires std::is_standard_layout_v<T> && (N == 1)
+using plain_wrapper = T;
 
-template <typename T, size_t> struct ref_wrapper
-{
-    typedef T& type;
-};
+template <typename T, size_t N> requires (N == 1)
+using ref_wrapper = T&;
 
-template <typename T, size_t> struct constref_wrapper
-{
-    typedef const T& type;
-};
+template <typename T, size_t N> requires (N == 1)
+using constref_wrapper = const T&;
 
-template <typename T, size_t N> struct soa_wrapper
-{
-    typedef T type[N] __attribute__ ((aligned(SOA_ALIGN))); // TODO: Does this alignment work?
-};
+template <typename T, size_t N>
+using soa_wrapper = alignas(__Type_Helpers::SOA_ALIGN) T[N]; // TODO: Does this alignment work?
 
-template <typename T, size_t N> struct soaptr_wrapper // TODO: Not sure if we really need this, but could be helpful to pass around to functions.
-{
-    typedef T* type;
-};
+template <typename T, size_t N>
+using soaptr_wrapper = T*;// TODO: Not sure if we really need this, but could be helpful to pass around to functions.
 
-template <template <template <typename, size_t> typename, size_t> typename T, size_t N, typename S> struct AOS_arrayview
+template <template <template <typename, size_t> typename, size_t> typename T, size_t N, typename S>
+struct AOS_arrayview
 {
     AOS_arrayview(T<__Type_Helpers::plain_wrapper, 1>* s, S T<__Type_Helpers::plain_wrapper, 1>::*p) : source(s), pointer(p) {}
     S& operator[](size_t idx) { return source[idx].*pointer; }
@@ -70,16 +61,16 @@ private:
     S T<__Type_Helpers::plain_wrapper, 1>::*pointer;
 };
 
-template <template <template <typename, size_t> typename, size_t> typename S> struct array_helper {
-    template <typename T, size_t N> struct array_type_wrapper
-    {
-        typedef AOS_arrayview<S, N, T> type;
-    };
+template <template <template <typename, size_t> typename, size_t> typename S>
+struct array_helper {
+    template <typename T, size_t N>
+    using array_type_wrapper = AOS_arrayview<S, N, T>;
 };
 
 } // namespace Type_Helpers
 
-template <template <template <typename, size_t> typename, size_t> typename T> struct Type_Ref : public T<__Type_Helpers::ref_wrapper, 1>
+template <template <template <typename, size_t> typename, size_t> typename T>
+struct Type_Ref : public T<__Type_Helpers::ref_wrapper, 1>
 {
     Type_Ref(const T<__Type_Helpers::ref_wrapper, 1>& obj) : T<__Type_Helpers::ref_wrapper, 1>(obj) {}
     Type_Ref(const Type_Ref<T>&) = default;
@@ -90,7 +81,8 @@ template <template <template <typename, size_t> typename, size_t> typename T> st
     auto get_copy(size_t = 0) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::ref_wrapper, 1>, T<__Type_Helpers::plain_wrapper, 1>>(*this); };
 };
 
-template <template <template <typename, size_t> typename, size_t> typename T> struct Type_ConstRef : public T<__Type_Helpers::constref_wrapper, 1>
+template <template <template <typename, size_t> typename, size_t> typename T>
+struct Type_ConstRef : public T<__Type_Helpers::constref_wrapper, 1>
 {
     Type_ConstRef(const T<__Type_Helpers::ref_wrapper, 1>& obj) : T<__Type_Helpers::constref_wrapper, 1>(((const Type_Ref<T>)Type_Ref<T>(obj)).get_ref()) {}
     Type_ConstRef(const T<__Type_Helpers::constref_wrapper, 1>& obj) : T<__Type_Helpers::constref_wrapper, 1>(obj) {}
@@ -101,14 +93,16 @@ template <template <template <typename, size_t> typename, size_t> typename T> st
     auto get_copy(size_t = 0) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::constref_wrapper, 1>, T<__Type_Helpers::plain_wrapper, 1>>(*this); };
 };
 
-template <template <template <typename, size_t> typename, size_t> typename T> struct Type_SOAPtr : public T<__Type_Helpers::soaptr_wrapper, 1>
+template <template <template <typename, size_t> typename, size_t> typename T>
+struct Type_SOAPtr : public T<__Type_Helpers::soaptr_wrapper, 1>
 {
     Type_SOAPtr(const T<__Type_Helpers::soaptr_wrapper, 1>& obj) : T<__Type_Helpers::soaptr_wrapper, 1>(obj) {}
     Type_SOAPtr(const Type_SOAPtr<T>&) = default;
     Type_SOAPtr() = default;
 };
 
-template <template <template <typename, size_t> typename, size_t> typename T> struct Type_Plain : public T<__Type_Helpers::plain_wrapper, 1>
+template <template <template <typename, size_t> typename, size_t> typename T>
+struct Type_Plain : public T<__Type_Helpers::plain_wrapper, 1>
 {
     Type_Plain(const T<__Type_Helpers::plain_wrapper, 1>& obj) : T<__Type_Helpers::plain_wrapper, 1>(obj) {}
     Type_Plain(const Type_Plain<T>&) = default;
@@ -119,7 +113,8 @@ template <template <template <typename, size_t> typename, size_t> typename T> st
     auto get_copy(size_t = 0) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::plain_wrapper, 1>, T<__Type_Helpers::plain_wrapper, 1>>(*this); };    
 };
 
-template <template <template <typename, size_t> typename, size_t> typename T, size_t N> struct Type_SOA : public T<__Type_Helpers::soa_wrapper, N>
+template <template <template <typename, size_t> typename, size_t> typename T, size_t N>
+struct Type_SOA : public T<__Type_Helpers::soa_wrapper, N>
 {
     Type_Ref<T> operator[](size_t idx) { return get_ref(idx); }
     Type_ConstRef<T> operator[](size_t idx) const { return get_ref(idx); }
@@ -130,7 +125,8 @@ template <template <template <typename, size_t> typename, size_t> typename T, si
     auto get_ptrs() { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soa_wrapper, 1>, T<__Type_Helpers::soaptr_wrapper, 1>>(*this); };
 };
 
-template <template <template <typename, size_t> typename, size_t> typename T, size_t N> struct Type_AOS : public T<__Type_Helpers::array_helper<T>::template array_type_wrapper, N>
+template <template <template <typename, size_t> typename, size_t> typename T, size_t N>
+struct Type_AOS : public T<__Type_Helpers::array_helper<T>::template array_type_wrapper, N>
 {
     Type_AOS() : T<__Type_Helpers::array_helper<T>::template array_type_wrapper, N>(get_arrays()) {
 
