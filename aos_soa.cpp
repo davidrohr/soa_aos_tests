@@ -14,9 +14,13 @@
 template <template <template <typename> typename> typename T> struct Type_Ref;
 template <template <template <typename> typename> typename T> struct Type_ConstRef;
 template <template <template <typename> typename> typename T> struct Type_Plain;
-template <template <template <typename> typename> typename T, size_t N> struct Type_SOA;
-template <template <template <typename> typename> typename T, size_t N> struct Type_AOS;
-template <template <template <typename> typename> typename T> struct Type_SOAPtr;
+template <template <template <typename> typename> typename T, size_t N> struct Type_SOA; // array types, fixed size like std::array
+template <template <template <typename> typename> typename T, size_t N> struct Type_AOS; //
+template <template <template <typename> typename> typename T> struct Type_SOA_v; // vector types, variable size, owning, like std::vector
+template <template <template <typename> typename> typename T> struct Type_AOS_v; //
+template <template <template <typename> typename> typename T> struct Type_SOA_s; // span types, not owning
+template <template <template <typename> typename> typename T> struct Type_AOS_s; // TODO: I assume for the span types, which are not owning, we'll need to differentiate between const and non const versions.
+template <template <template <typename> typename> typename T> struct Type_SOAPtr; // TODO: Not sure if we really need this, but could be helpful to pass around to functions. Would be like a span, but doesn't know about the size
 
 namespace __Type_Helpers {
 
@@ -49,7 +53,7 @@ using soa_wrapper = alignas(__Type_Helpers::SOA_ALIGN) T[N]; // TODO: Does this 
 };
 
 template <typename T>
-using soaptr_wrapper = T*;// TODO: Not sure if we really need this, but could be helpful to pass around to functions.
+using soaptr_wrapper = T*;
 
 template <template <template <typename> typename> typename T, typename S>
 struct AOS_arrayview
@@ -127,6 +131,40 @@ struct Type_SOA : public T<__Type_Helpers::soa_array<N>::template soa_wrapper>
     auto get_ptrs() { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soa_array<N>::template soa_wrapper>, T<__Type_Helpers::soaptr_wrapper>>(*this); };
 };
 
+template <template <template <typename> typename> typename T>
+struct Type_SOA_v : public T<__Type_Helpers::template soaptr_wrapper> // TODO: Implement the same for Type_AOS_v
+{
+    Type_SOA_v(size_t v) : N(v) {} // TODO: implement constructor to allocate N elements
+    Type_SOA_v(const Type_SOA_v&) = default;
+    Type_Ref<T> operator[](size_t idx) { return get_ref(idx); }
+    Type_ConstRef<T> operator[](size_t idx) const { return get_ref(idx); }
+
+    auto get_ref(size_t idx) { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::ref_wrapper>>(*this, idx); };
+    auto get_ref(size_t idx) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::constref_wrapper>>(*this, idx); };
+    auto get_copy(size_t idx) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::plain_wrapper>>(*this, idx); };
+    auto get_ptrs() { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::soaptr_wrapper>>(*this); };
+private:
+    size_t N;
+};
+
+template <template <template <typename> typename> typename T> // TODO: need a similar class for Type_SOA_s
+struct Type_SOA_s : public T<__Type_Helpers::template soaptr_wrapper> // TODO: Implement the same for Type_AOS_s
+{
+    template <size_t M>
+    Type_SOA_s(Type_SOA<T, M>& array, size_t offset = 0, size_t size = -1) {(void)array;(void)offset;(void)size;} // TODO: implement constructors to point to corresponding part of Type_SOA selected by offset/size (-1 = till the end)
+    Type_SOA_s(Type_SOA_v<T>& vector, size_t offset = 0, size_t size = -1) {(void)vector;(void)offset;(void)size;} // Same for vector instead of array
+    Type_SOA_s(const Type_SOA_s&) = default;
+    Type_Ref<T> operator[](size_t idx) { return get_ref(idx); }
+    Type_ConstRef<T> operator[](size_t idx) const { return get_ref(idx); }
+
+    auto get_ref(size_t idx) { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::ref_wrapper>>(*this, idx); };
+    auto get_ref(size_t idx) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::constref_wrapper>>(*this, idx); };
+    auto get_copy(size_t idx) const { return __Type_Helpers::SOA_convert<const T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::plain_wrapper>>(*this, idx); };
+    auto get_ptrs() { return __Type_Helpers::SOA_convert<T<__Type_Helpers::soaptr_wrapper>, T<__Type_Helpers::soaptr_wrapper>>(*this); };
+private:
+    size_t N;
+};
+
 template <template <template <typename> typename> typename T, size_t N>
 struct Type_AOS : public T<__Type_Helpers::array_helper<T>::template array_type_wrapper>
 {
@@ -177,6 +215,8 @@ int main(int, char**)
     // TODO: We need to overwrite the constructors, to either take a custom allocator function, or to create in place in existing memory like placement-new
     Type_SOA<point_d, 10> p_soa;
     Type_AOS<point_d, 10> p_aos;
+    Type_SOA_v<point_d> p_soa_vector(10);
+    Type_SOA_s<point_d> p_soa_span1(p_soa, 5, 3), p_soa_span2(p_soa_vector, 2, -1);
     point p_plain;
 
     p_soa.x[1] = 10;
