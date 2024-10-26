@@ -61,3 +61,20 @@ typedef point_functions<Type_Plain<point_d>> point;
 typedef point_functions<Type_Ref<point_d>> point_ref;
 ```
 - Something like this might work, but I think it is not yet ideal.
+
+# Passing references:
+I am wondering how to pass references to a function in a generic way. E.g.
+```
+void foo(point& p) {
+...
+}
+Type_SOA<point_d, 10> p_soa;
+Type_AOS<point_d, 10> p_aos;
+foo(p_soa[5]);
+foo(p_aos[5]);
+```
+In my current implementation, `p_soa[5]` and `p_aos[5]` have different types, even though both types offer the exact same interface. Now, the options I see are:
+- The function must be templated, which would be pretty much OK for inline function, but a nightmare for multiple compilation units as you'd need to instantiate the templates explicitly.
+- One could use onle the reference type, and always pass the `.get_ref()`, which will always be the same type. However, in case of the `p_aos`, `get_ref()` creates a struct of references, instead of passing a single references, so this would introduce significant overhead, which we should avoid.
+- We could have a second meta-reference type, with a type flag, that would then either store a reference to the plain type, or a reference to the refence type. But in that case, every access would need to check the type flag, adding plenty of `if` statements.
+- Is there any better solution?
