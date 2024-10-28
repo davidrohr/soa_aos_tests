@@ -78,3 +78,8 @@ In my current implementation, `p_soa[5]` and `p_aos[5]` have different types, ev
 - One could use onle the reference type, and always pass the `.get_ref()`, which will always be the same type. However, in case of the `p_aos`, `get_ref()` creates a struct of references, instead of passing a single references, so this would introduce significant overhead, which we should avoid.
 - We could have a second meta-reference type, with a type flag, that would then either store a reference to the plain type, or a reference to the refence type. But in that case, every access would need to check the type flag, adding plenty of `if` statements.
 - Is there any better solution?
+
+# Nested structures: Support for AoSoA and SoAoS
+- I think we should support nested structures. SoAoS in case some parameters are always used together, e.g. x and y coordinates. And AoSoA to store things in columnar way for vector access, but keep some cache locality.
+- I suppose AoSoA should be straigt forward to do, with an array of SoA and some magic for the access operators. We should make sure that `for ( auto& : ...)` loops work efficiently.
+- SoAoS is more complicated: Do we want to define the struct substructure when defining the variable, or could it be part of the skelleton class definition? Perhaps it is easiest to start with the latter as done here https://github.com/davidrohr/soa_aos_tests/blob/352405f771e7100c3a0409777d636a2ce3179cc8/aos_soa.cpp#L207, which works transparently.
