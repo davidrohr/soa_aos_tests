@@ -38,6 +38,9 @@ I would consider the following cases:
 - See https://github.com/davidrohr/soa_aos_tests/blob/f12c3f63535e653d500fb1ea46527ee7d22f7d9a/aos_soa.cpp#L52
 - E.g., if we have multiple large arrays, we could make sure that they start at a CPU cache line, or that they match the largest vector load the GPU can do.
 
+# Alignment 2
+- If we get memory for types, or references to one of our types from outside, we must provide an optimized version in case the user guarantues a certain alignment, but we must also provide a fallback solution if no alignment can be guaranteed.
+
 # Template solution for creating spans with arbitrary number of members in the struct:
 - In my playground https://github.com/davidrohr/soa_aos_tests/blob/f12c3f63535e653d500fb1ea46527ee7d22f7d9a/aos_soa.cpp#L190, I can currently create a span of an AOS for a fixed number of members.
 - I did not manage to apply the above hack for structured binding with counting to this case. Is there a template metaprogramming solution, or does it require reflection?
